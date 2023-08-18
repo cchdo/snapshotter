@@ -103,11 +103,15 @@ History
 
 # Include woce sum files in other woce downloads
 
-async def get_and_write_to_zip(session, fname, path, zf, progress, total, tasks, data_type, data_format):
+
+async def get_and_write_to_zip(
+    session, fname, path, zf, progress, total, tasks, data_type, data_format
+):
     async with session.get(path) as resp:
         zf.writestr(fname, await resp.read())
         progress.update(total, advance=1)
         progress.update(tasks[(data_type, data_format)], advance=1)
+
 
 async def main():
     async with aiohttp.ClientSession(CCHDO_API_BASE) as session:
@@ -196,15 +200,26 @@ async def main():
                 f"[blue]{data_type} {data_format}", total=len(files)
             )
 
-
-
         for (data_type, data_format), files in get_files.items():
             path = snapshot / f"{data_type}_{data_format}.zip"
             path.parents[0].mkdir(parents=True, exist_ok=True)
 
             with ZipFile(path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
                 async with aiohttp.ClientSession() as session:
-                    aio_tasks = [get_and_write_to_zip(session, fname, path, zf, progress, total, tasks, data_type, data_format) for fname, path in files.items()]
+                    aio_tasks = [
+                        get_and_write_to_zip(
+                            session,
+                            fname,
+                            path,
+                            zf,
+                            progress,
+                            total,
+                            tasks,
+                            data_type,
+                            data_format,
+                        )
+                        for fname, path in files.items()
+                    ]
                     await asyncio.gather(*aio_tasks)
 
 
