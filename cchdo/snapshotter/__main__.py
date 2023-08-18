@@ -18,14 +18,14 @@ file_exts = {
     ("ctd", "exchange"): "_ct1.zip",
     ("ctd", "whp_netcdf"): "_nc_ctd.zip",
     ("ctd", "woce"): "ct.zip",
-    #("trace_metals", "exchange"): "",
-    #("trace_metals", "whp_netcdf"): "",
-    #("trace_metals", "woce"): "",
+    # ("trace_metals", "exchange"): "",
+    # ("trace_metals", "whp_netcdf"): "",
+    # ("trace_metals", "woce"): "",
     ("large_volume", "woce"): "lv.txt",
     ("documentation", "pdf"): "do.pdf",
     ("documentation", "text"): "do.txt",
-    #("documentation", "ods"): "do.ods",
-    ("summary", "woce"): "su.txt"
+    # ("documentation", "ods"): "do.ods",
+    ("summary", "woce"): "su.txt",
 }
 
 get_files = defaultdict(dict)
@@ -33,13 +33,23 @@ get_files = defaultdict(dict)
 
 def in_dataset(file):
     # we also ensure the files are public, just in case
-    return file["role"] == "dataset" and file["permissions"] == [] and file["data_type"] != "trace_metals"
+    return (
+        file["role"] == "dataset"
+        and file["permissions"] == []
+        and file["data_type"] != "trace_metals"
+    )
+
 
 snapshot = Path("snapshot")
 
+
 def make_cruise_info(cruise) -> tuple[str, dict]:
-    chisci = list(filter(lambda x: x["role"]=="Chief Scientist", cruise["participants"]))
-    cochisci = list(filter(lambda x: x["role"]=="Co-Chief Scientist", cruise["participants"]))
+    chisci = list(
+        filter(lambda x: x["role"] == "Chief Scientist", cruise["participants"])
+    )
+    cochisci = list(
+        filter(lambda x: x["role"] == "Co-Chief Scientist", cruise["participants"])
+    )
 
     woce_lines = ", ".join(cruise["collections"]["woce_lines"])
     oceans = ", ".join(cruise["collections"]["oceans"])
@@ -51,13 +61,14 @@ def make_cruise_info(cruise) -> tuple[str, dict]:
     for note in history_items:
         history_block.append(f"Date: {note['date']}")
         history_block.append(f"From: {note['name']}")
-        history_block.append(f"Subject: {note['data_type']} - {note['summary']} - {note['action']}")
+        history_block.append(
+            f"Subject: {note['data_type']} - {note['summary']} - {note['action']}"
+        )
         history_block.append("")
         for line in note["body"]:
             history_block.append(line)
 
         history_block.append("")
-
 
     history = "\n".join(history_block)
 
@@ -77,16 +88,18 @@ History
 -------
 {history}
 """
-    cruise_info = {**cruise,
-                "woce_lines": woce_lines,
-                "oceans": oceans,
-                "programs": programs,
-                "groups": groups
+    cruise_info = {
+        **cruise,
+        "woce_lines": woce_lines,
+        "oceans": oceans,
+        "programs": programs,
+        "groups": groups,
     }
     return cruise_text, cruise_info
 
 
 # Include woce sum files in other woce downloads
+
 
 async def main():
     async with aiohttp.ClientSession(CCHDO_API_BASE) as session:
@@ -103,7 +116,9 @@ async def main():
 
     snapshot.mkdir(exist_ok=True)
 
-    with ZipFile(snapshot / "data_info.zip", "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
+    with ZipFile(
+        snapshot / "data_info.zip", "w", compression=ZIP_DEFLATED, compresslevel=9
+    ) as zf:
         for cruise in crusies:
             expocode = cruise["expocode"]
             cruise_text, cruise_info = make_cruise_info(cruise)
@@ -128,24 +143,36 @@ async def main():
                     fname = f"{expocode.replace('/', '_')}_{count}{file_exts[file_key]}"
                     count += 1
 
-                get_files[file_key][fname] = f"https://cchdo.ucsd.edu{file['file_path']}"
+                get_files[file_key][
+                    fname
+                ] = f"https://cchdo.ucsd.edu{file['file_path']}"
 
     with open(snapshot / "programs.csv", "w", newline="") as cs:
         columns = ("count", "program")
         writer = csv.DictWriter(cs, columns, extrasaction="ignore")
         writer.writeheader()
-        for (count, program) in programs.most_common():
+        for count, program in programs.most_common():
             writer.writerow({"count": count, "program": program})
 
     with open(snapshot / "basins.csv", "w", newline="") as cs:
         columns = ("count", "basins")
         writer = csv.DictWriter(cs, columns, extrasaction="ignore")
         writer.writeheader()
-        for (count, ocean) in basins.most_common():
+        for count, ocean in basins.most_common():
             writer.writerow({"count": count, "basins": ocean})
-    
-    with open(snapshot / "cruise_index.csv", "w", newline='') as cs:
-        columns = ("expocode", "startDate", "endDate", "ship", "country", "woce_lines", "programs", "oceans", "groups")
+
+    with open(snapshot / "cruise_index.csv", "w", newline="") as cs:
+        columns = (
+            "expocode",
+            "startDate",
+            "endDate",
+            "ship",
+            "country",
+            "woce_lines",
+            "programs",
+            "oceans",
+            "groups",
+        )
 
         writer = csv.DictWriter(cs, columns, extrasaction="ignore")
         writer.writeheader()
@@ -153,9 +180,13 @@ async def main():
 
     with Progress() as progress:
         tasks = {}
-        total = progress.add_task("[red]Dowloading Files...", total=sum(len(f) for f in get_files.values()))
+        total = progress.add_task(
+            "[red]Dowloading Files...", total=sum(len(f) for f in get_files.values())
+        )
         for (data_type, data_format), files in get_files.items():
-            tasks[(data_type, data_format)] = progress.add_task(f"[blue]{data_type} {data_format}", total=len(files))
+            tasks[(data_type, data_format)] = progress.add_task(
+                f"[blue]{data_type} {data_format}", total=len(files)
+            )
 
         for (data_type, data_format), files in get_files.items():
             path = snapshot / f"{data_type}_{data_format}.zip"
@@ -168,7 +199,6 @@ async def main():
                             zf.writestr(fname, await resp.read())
                             progress.update(total, advance=1)
                             progress.update(tasks[(data_type, data_format)], advance=1)
-
 
 
 if __name__ == "__main__":
