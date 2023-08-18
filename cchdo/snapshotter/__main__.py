@@ -9,6 +9,9 @@ from rich.progress import Progress
 
 CCHDO_API_BASE = "https://cchdo.ucsd.edu"
 
+# Limit how many parallel requests are going
+aiohttp.TCPConnector(limit=20)
+
 file_exts = {
     ("bottle", "cf_netcdf"): "_bottle.nc",
     ("bottle", "exchange"): "_hy1.csv",
@@ -100,6 +103,11 @@ History
 
 # Include woce sum files in other woce downloads
 
+async def get_and_write_to_zip(session, fname, path, zf, progress, total, tasks, data_type, data_format):
+    async with session.get(path) as resp:
+        zf.writestr(fname, await resp.read())
+        progress.update(total, advance=1)
+        progress.update(tasks[(data_type, data_format)], advance=1)
 
 async def main():
     async with aiohttp.ClientSession(CCHDO_API_BASE) as session:
@@ -188,17 +196,16 @@ async def main():
                 f"[blue]{data_type} {data_format}", total=len(files)
             )
 
+
+
         for (data_type, data_format), files in get_files.items():
             path = snapshot / f"{data_type}_{data_format}.zip"
             path.parents[0].mkdir(parents=True, exist_ok=True)
 
             with ZipFile(path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
                 async with aiohttp.ClientSession() as session:
-                    for fname, path in files.items():
-                        async with session.get(path) as resp:
-                            zf.writestr(fname, await resp.read())
-                            progress.update(total, advance=1)
-                            progress.update(tasks[(data_type, data_format)], advance=1)
+                    aio_tasks = [get_and_write_to_zip(session, fname, path, zf, progress, total, tasks, data_type, data_format) for fname, path in files.items()]
+                    await asyncio.gather(*aio_tasks)
 
 
 if __name__ == "__main__":
