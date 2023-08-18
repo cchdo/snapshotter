@@ -28,14 +28,6 @@ file_exts = {
     ("summary", "woce"): "su.txt"
 }
 
-path_subs = {
-    "bottle": "Bottle Data",
-    "documentation": "Cruise Reports",
-    "ctd": "CTD Data",
-    "large_volume": "Large Volume Sample Data",
-    "summary": "Station Summaries",
-}
-
 get_files = defaultdict(dict)
 
 
@@ -151,11 +143,9 @@ async def main():
         writer.writeheader()
         for (count, ocean) in basins.most_common():
             writer.writerow({"count": count, "basins": ocean})
-    return
-
     
     with open(snapshot / "cruise_index.csv", "w", newline='') as cs:
-        columns = ("expocode", "startDate", "endDate", "country", "woce_lines", "programs", "oceans", "groups")
+        columns = ("expocode", "startDate", "endDate", "ship", "country", "woce_lines", "programs", "oceans", "groups")
 
         writer = csv.DictWriter(cs, columns, extrasaction="ignore")
         writer.writeheader()
@@ -168,7 +158,7 @@ async def main():
             tasks[(data_type, data_format)] = progress.add_task(f"[blue]{data_type} {data_format}", total=len(files))
 
         for (data_type, data_format), files in get_files.items():
-            path = snapshot / path_subs[data_type] / f"{data_format}.zip"
+            path = snapshot / f"{data_type}_{data_format}.zip"
             path.parents[0].mkdir(parents=True, exist_ok=True)
 
             with ZipFile(path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
