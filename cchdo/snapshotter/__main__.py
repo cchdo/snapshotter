@@ -1,4 +1,5 @@
 import asyncio
+from hashlib import file_digest
 from pathlib import Path
 from collections import defaultdict, Counter
 from zipfile import ZipFile, ZIP_DEFLATED
@@ -113,6 +114,18 @@ async def get_and_write_to_zip(
         progress.update(tasks[(data_type, data_format)], advance=1)
 
 
+def write_manifest_line(snapshot: Path, line):
+    with (snapshot / "_manifest.csv").open("+a") as manifest:
+        manifest.write(f"{line}\n")
+
+
+def write_manitfest_file(snapshot, path, fname):
+    with open(path, "rb") as f:
+        size = path.stat().st_size
+        file_hash = file_digest(f, "sha256").hexdigest()
+        write_manifest_line(snapshot, f"{fname},{size},{file_hash}")
+
+
 async def main():
     async with aiohttp.ClientSession(CCHDO_API_BASE) as session:
         async with session.get("/api/v1/cruise/all") as resp:
@@ -127,6 +140,8 @@ async def main():
     programs = Counter()
 
     snapshot.mkdir(exist_ok=True)
+
+    write_manifest_line(snapshot, "file,size,sha256")
 
     with ZipFile(
         snapshot / "data_info.zip", "w", compression=ZIP_DEFLATED, compresslevel=9
@@ -159,19 +174,23 @@ async def main():
                     fname
                 ] = f"https://cchdo.ucsd.edu{file['file_path']}"
 
-    with open(snapshot / "programs.csv", "w", newline="") as cs:
-        columns = ("count", "program")
-        writer = csv.DictWriter(cs, columns, extrasaction="ignore")
-        writer.writeheader()
-        for count, program in programs.most_common():
-            writer.writerow({"count": count, "program": program})
+    write_manitfest_file(snapshot, snapshot / "data_info.zip", "data_info.zip")
 
-    with open(snapshot / "basins.csv", "w", newline="") as cs:
-        columns = ("count", "basins")
-        writer = csv.DictWriter(cs, columns, extrasaction="ignore")
-        writer.writeheader()
-        for count, ocean in basins.most_common():
-            writer.writerow({"count": count, "basins": ocean})
+    ## TODO make this a flag feaature
+
+    # with open(snapshot / "programs.csv", "w", newline="") as cs:
+    #    columns = ("count", "program")
+    #    writer = csv.DictWriter(cs, columns, extrasaction="ignore")
+    #    writer.writeheader()
+    #    for count, program in programs.most_common():
+    #        writer.writerow({"count": count, "program": program})
+
+    # with open(snapshot / "basins.csv", "w", newline="") as cs:
+    #    columns = ("count", "basins")
+    #    writer = csv.DictWriter(cs, columns, extrasaction="ignore")
+    #    writer.writeheader()
+    #    for count, ocean in basins.most_common():
+    #        writer.writerow({"count": count, "basins": ocean})
 
     with open(snapshot / "cruise_index.csv", "w", newline="") as cs:
         columns = (
@@ -189,6 +208,7 @@ async def main():
         writer = csv.DictWriter(cs, columns, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(sorted(cruise_infos, key=lambda x: x["expocode"]))
+    write_manitfest_file(snapshot, snapshot / "cruise_index.csv", "cruise_index.csv")
 
     with Progress() as progress:
         tasks = {}
@@ -201,7 +221,8 @@ async def main():
             )
 
         for (data_type, data_format), files in get_files.items():
-            path = snapshot / f"{data_type}_{data_format}.zip"
+            fname = f"{data_type}_{data_format}.zip"
+            path = snapshot / fname
             path.parents[0].mkdir(parents=True, exist_ok=True)
 
             with ZipFile(path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
@@ -221,6 +242,7 @@ async def main():
                         for fname, path in files.items()
                     ]
                     await asyncio.gather(*aio_tasks)
+            write_manitfest_file(snapshot, path, fname)
 
 
 if __name__ == "__main__":
