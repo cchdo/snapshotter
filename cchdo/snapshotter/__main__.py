@@ -1,4 +1,5 @@
 import asyncio
+from itertools import chain
 from hashlib import file_digest
 from pathlib import Path
 from collections import defaultdict, Counter
@@ -33,6 +34,7 @@ file_exts = {
 }
 
 get_files = defaultdict(dict)
+get_files_hashes = defaultdict(dict)
 
 
 def in_dataset(file):
@@ -46,6 +48,7 @@ def in_dataset(file):
 
 snapshot = Path("snapshot")
 
+tmpdir = snapshot / "_tmp"
 
 def make_cruise_info(cruise) -> tuple[str, dict]:
     chisci = list(
@@ -101,17 +104,28 @@ History
     }
     return cruise_text, cruise_info
 
+async def get_and_write_to_temp(session, path:Path, uri, fhash,progress,total):
+    if path.exists():
+        with path.open("rb") as f:
+            existing_hash = file_digest(f, "sha256").hexdigest()
+            if existing_hash == fhash:
+                print(f"Already Loaded: {uri}")
+                progress.update(total, advance=1)
+                return
+        path.unlink()
 
-# Include woce sum files in other woce downloads
+    async with session.get(uri) as resp:
+        print(f"Downloading: {uri}")
+        with path.open("wb") as f:
+            f.write(await resp.read())
 
+    with path.open("rb") as f:
+        existing_hash = file_digest(f, "sha256").hexdigest()
+        if existing_hash != fhash:
+            raise Exception("bad download")
+    
+    progress.update(total, advance=1)
 
-async def get_and_write_to_zip(
-    session, fname, path, zf, progress, total, tasks, data_type, data_format
-):
-    async with session.get(path) as resp:
-        zf.writestr(fname, await resp.read())
-        progress.update(total, advance=1)
-        progress.update(tasks[(data_type, data_format)], advance=1)
 
 
 def write_manifest_line(snapshot: Path, line):
@@ -174,6 +188,8 @@ async def main():
                     fname
                 ] = f"https://cchdo.ucsd.edu{file['file_path']}"
 
+                get_files_hashes[file_key][fname] = file["file_hash"]
+
     write_manitfest_file(snapshot, snapshot / "data_info.zip", "data_info.zip")
 
     ## TODO make this a flag feaature
@@ -211,37 +227,46 @@ async def main():
     write_manitfest_file(snapshot, snapshot / "cruise_index.csv", "cruise_index.csv")
 
     with Progress() as progress:
-        tasks = {}
         total = progress.add_task(
             "[red]Dowloading Files...", total=sum(len(f) for f in get_files.values())
         )
-        for (data_type, data_format), files in get_files.items():
-            tasks[(data_type, data_format)] = progress.add_task(
-                f"[blue]{data_type} {data_format}", total=len(files)
-            )
+
+        fetch_list = []
+        for dtkey, files in get_files.items():
+            for fname, uri in files.items():
+                fetch_list.append((
+                    get_files_hashes[dtkey][fname],
+                    uri)
+                )
+            
+        tmpdir.mkdir(parents=True, exist_ok=True)
+
+        async with aiohttp.ClientSession() as session:
+            aio_tasks = [
+                get_and_write_to_temp(
+                    session,
+                    (tmpdir / fhash),
+                    uri,
+                    fhash,
+                    progress,
+                    total,
+                )
+                for fhash, uri in fetch_list
+            ]
+            await asyncio.gather(*aio_tasks)
 
         for (data_type, data_format), files in get_files.items():
             fname = f"{data_type}_{data_format}.zip"
             path = snapshot / fname
             path.parents[0].mkdir(parents=True, exist_ok=True)
+            print(f"Making {fname}")
 
             with ZipFile(path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
-                async with aiohttp.ClientSession() as session:
-                    aio_tasks = [
-                        get_and_write_to_zip(
-                            session,
-                            fname,
-                            path,
-                            zf,
-                            progress,
-                            total,
-                            tasks,
-                            data_type,
-                            data_format,
-                        )
-                        for fname, path in files.items()
-                    ]
-                    await asyncio.gather(*aio_tasks)
+                for name, ziname in files.items():
+                    fhash = get_files_hashes[dtkey][name]
+                    ospath = tmpdir / fhash
+                    zf.write(ospath, ziname)
+
             write_manitfest_file(snapshot, path, fname)
 
 
