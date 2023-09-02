@@ -50,6 +50,7 @@ snapshot = Path("snapshot")
 
 tmpdir = snapshot / "_tmp"
 
+
 def make_cruise_info(cruise) -> tuple[str, dict]:
     chisci = list(
         filter(lambda x: x["role"] == "Chief Scientist", cruise["participants"])
@@ -104,7 +105,8 @@ History
     }
     return cruise_text, cruise_info
 
-async def get_and_write_to_temp(session, path:Path, uri, fhash,progress,total):
+
+async def get_and_write_to_temp(session, path: Path, uri, fhash, progress, total):
     if path.exists():
         with path.open("rb") as f:
             existing_hash = file_digest(f, "sha256").hexdigest()
@@ -123,9 +125,8 @@ async def get_and_write_to_temp(session, path:Path, uri, fhash,progress,total):
         existing_hash = file_digest(f, "sha256").hexdigest()
         if existing_hash != fhash:
             raise Exception("bad download")
-    
-    progress.update(total, advance=1)
 
+    progress.update(total, advance=1)
 
 
 def write_manifest_line(snapshot: Path, line):
@@ -234,11 +235,8 @@ async def main():
         fetch_list = []
         for dtkey, files in get_files.items():
             for fname, uri in files.items():
-                fetch_list.append((
-                    get_files_hashes[dtkey][fname],
-                    uri)
-                )
-            
+                fetch_list.append((get_files_hashes[dtkey][fname], uri))
+
         tmpdir.mkdir(parents=True, exist_ok=True)
 
         async with aiohttp.ClientSession() as session:
