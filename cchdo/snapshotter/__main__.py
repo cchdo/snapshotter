@@ -260,10 +260,10 @@ async def main():
             print(f"Making {fname}")
 
             with ZipFile(path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
-                for name, ziname in files.items():
-                    fhash = get_files_hashes[dtkey][name]
+                for name in files:
+                    fhash = get_files_hashes[(data_type, data_format)][name]
                     ospath = tmpdir / fhash
-                    zf.write(ospath, ziname)
+                    zf.write(ospath, name)
 
             write_manitfest_file(snapshot, path, fname)
 
