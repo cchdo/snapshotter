@@ -49,6 +49,7 @@ def in_dataset(file):
         and file["data_type"] != "trace_metals"
     )
 
+
 now = datetime.now(timezone.utc)
 
 snapshot = Path(f"{now:%Y-%m-%d}_cchdo_snapshot")
@@ -196,7 +197,9 @@ async def main():
 
                 get_files_hashes[file_key][fname] = file["file_hash"]
 
-    write_manitfest_file(snapshot, snapshot / "cruise_history.zip", "cruise_history.zip")
+    write_manitfest_file(
+        snapshot, snapshot / "cruise_history.zip", "cruise_history.zip"
+    )
 
     ## TODO make this a flag feaature
 
