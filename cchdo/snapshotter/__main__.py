@@ -1,13 +1,17 @@
 import asyncio
-from itertools import chain
 from hashlib import file_digest
 from pathlib import Path
 from collections import defaultdict, Counter
 from zipfile import ZipFile, ZIP_DEFLATED
 import csv
+from datetime import datetime, timezone
 
 import aiohttp
 from rich.progress import Progress
+
+from appdirs import AppDirs
+
+dirs = AppDirs("snapshotter", "edu.ucsd.cchdo")
 
 CCHDO_API_BASE = "https://cchdo.ucsd.edu"
 
@@ -45,10 +49,11 @@ def in_dataset(file):
         and file["data_type"] != "trace_metals"
     )
 
+now = datetime.now(timezone.utc)
 
-snapshot = Path("snapshot")
+snapshot = Path(f"{now:%Y-%m-%d}_cchdo_snapshot")
 
-tmpdir = snapshot / "_tmp"
+download_cache = Path(dirs.user_cache_dir) / "downloads"
 
 
 def make_cruise_info(cruise) -> tuple[str, dict]:
@@ -159,7 +164,7 @@ async def main():
     write_manifest_line(snapshot, "file,size,sha256")
 
     with ZipFile(
-        snapshot / "data_info.zip", "w", compression=ZIP_DEFLATED, compresslevel=9
+        snapshot / "cruise_history.zip", "w", compression=ZIP_DEFLATED, compresslevel=9
     ) as zf:
         for cruise in crusies:
             expocode = cruise["expocode"]
@@ -191,7 +196,7 @@ async def main():
 
                 get_files_hashes[file_key][fname] = file["file_hash"]
 
-    write_manitfest_file(snapshot, snapshot / "data_info.zip", "data_info.zip")
+    write_manitfest_file(snapshot, snapshot / "cruise_history.zip", "cruise_history.zip")
 
     ## TODO make this a flag feaature
 
@@ -237,13 +242,13 @@ async def main():
             for fname, uri in files.items():
                 fetch_list.append((get_files_hashes[dtkey][fname], uri))
 
-        tmpdir.mkdir(parents=True, exist_ok=True)
+        download_cache.mkdir(parents=True, exist_ok=True)
 
         async with aiohttp.ClientSession() as session:
             aio_tasks = [
                 get_and_write_to_temp(
                     session,
-                    (tmpdir / fhash),
+                    (download_cache / fhash),
                     uri,
                     fhash,
                     progress,
@@ -262,7 +267,7 @@ async def main():
             with ZipFile(path, "w", compression=ZIP_DEFLATED, compresslevel=9) as zf:
                 for name in files:
                     fhash = get_files_hashes[(data_type, data_format)][name]
-                    ospath = tmpdir / fhash
+                    ospath = download_cache / fhash
                     zf.write(ospath, name)
 
             write_manitfest_file(snapshot, path, fname)
