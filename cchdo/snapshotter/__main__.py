@@ -134,6 +134,10 @@ async def get_and_write_to_temp(session, path: Path, uri, fhash, progress, total
 
     progress.update(total, advance=1)
 
+def initialize_manifest(snapshot: Path):
+    with (snapshot / "_manifest.csv").open("w", newline="") as manifest:
+        writer = csv.writer(manifest, lineterminator="\n")
+        writer.writerow(("file", "size", "sha256"))
 
 def write_manifest_line(snapshot: Path, line):
     with (snapshot / "_manifest.csv").open("+a") as manifest:
@@ -162,7 +166,7 @@ async def main():
 
     snapshot.mkdir(exist_ok=True)
 
-    write_manifest_line(snapshot, "file,size,sha256")
+    initialize_manifest(snapshot)
 
     with ZipFile(
         snapshot / "cruise_history.zip", "w", compression=ZIP_DEFLATED, compresslevel=9
