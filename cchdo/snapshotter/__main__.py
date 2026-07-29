@@ -1,15 +1,15 @@
 import asyncio
+import csv
+from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from hashlib import file_digest
 from pathlib import Path
-from collections import defaultdict, Counter
-from zipfile import ZipFile, ZIP_DEFLATED
-import csv
-from datetime import datetime, timezone
+from zipfile import ZIP_DEFLATED, ZipFile
 
 import aiohttp
-from rich.progress import Progress
-
 from appdirs import AppDirs
+from bagit import make_bag
+from rich.progress import Progress
 
 dirs = AppDirs("snapshotter", "edu.ucsd.cchdo")
 
@@ -133,17 +133,6 @@ async def get_and_write_to_temp(session, path: Path, uri, fhash, progress, total
     progress.update(total, advance=1)
 
 
-def write_manifest_line(snapshot: Path, line):
-    with (snapshot / "_manifest.csv").open("+a") as manifest:
-        manifest.write(f"{line}\n")
-
-
-def write_manitfest_file(snapshot, path, fname):
-    with open(path, "rb") as f:
-        size = path.stat().st_size
-        file_hash = file_digest(f, "sha256").hexdigest()
-        write_manifest_line(snapshot, f"{fname},{size},{file_hash}")
-
 
 async def async_main():
     # Limit how many parallel requests are going
@@ -162,8 +151,6 @@ async def async_main():
     programs = Counter()
 
     snapshot.mkdir(exist_ok=True)
-
-    write_manifest_line(snapshot, "file,size,sha256")
 
     with ZipFile(
         snapshot / "cruise_history.zip", "w", compression=ZIP_DEFLATED, compresslevel=9
@@ -198,10 +185,6 @@ async def async_main():
 
                 get_files_hashes[file_key][fname] = file["file_hash"]
 
-    write_manitfest_file(
-        snapshot, snapshot / "cruise_history.zip", "cruise_history.zip"
-    )
-
     ## TODO make this a flag feaature
 
     # with open(snapshot / "programs.csv", "w", newline="") as cs:
@@ -234,7 +217,6 @@ async def async_main():
         writer = csv.DictWriter(cs, columns, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(sorted(cruise_infos, key=lambda x: x["expocode"]))
-    write_manitfest_file(snapshot, snapshot / "cruise_index.csv", "cruise_index.csv")
 
     with Progress() as progress:
         total = progress.add_task(
@@ -274,7 +256,9 @@ async def async_main():
                     ospath = download_cache / fhash
                     zf.write(ospath, name)
 
-            write_manitfest_file(snapshot, path, fname)
+    print("Snapshot Complete, Bagging")
+    make_bag(snapshot)
+    print(f"Bagging complete at: {snapshot}")
 
 def main():
     asyncio.run(async_main())
