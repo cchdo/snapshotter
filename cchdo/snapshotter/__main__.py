@@ -15,8 +15,6 @@ dirs = AppDirs("snapshotter", "edu.ucsd.cchdo")
 
 CCHDO_API_BASE = "https://cchdo.ucsd.edu"
 
-# Limit how many parallel requests are going
-aiohttp.TCPConnector(limit=20)
 
 file_exts = {
     ("bottle", "cf_netcdf"): "_bottle.nc",
@@ -96,7 +94,7 @@ Country: {cruise["country"]}
 WOCE Lines: {woce_lines}
 Oceans: {oceans}
 Programs: {programs}
-Groups: {groups} 
+Groups: {groups}
 
 History
 -------
@@ -147,7 +145,10 @@ def write_manitfest_file(snapshot, path, fname):
         write_manifest_line(snapshot, f"{fname},{size},{file_hash}")
 
 
-async def main():
+async def async_main():
+    # Limit how many parallel requests are going
+    aiohttp.TCPConnector(limit=20)
+
     async with aiohttp.ClientSession(CCHDO_API_BASE) as session:
         async with session.get("/api/v1/cruise/all") as resp:
             crusies = await resp.json()
@@ -275,6 +276,8 @@ async def main():
 
             write_manitfest_file(snapshot, path, fname)
 
+def main():
+    asyncio.run(async_main())
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

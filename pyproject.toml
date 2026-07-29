@@ -1,20 +1,31 @@
-[tool.poetry]
+[project]
 name = "cchdo.snapshotter"
 version = "0.1.0"
 description = ""
-authors = ["Andrew Barna <abarna@gmail.com>"]
+authors = [{ name = "Andrew Barna", email = "abarna@gmail.com" }]
+requires-python = ">=3.13,<4"
 readme = "README.md"
-packages = [
-  { include = "cchdo"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "aiohttp>=3.14.3,<4",
+    "rich>=13.5.2,<14",
+    "appdirs>=1.4.4,<2",
 ]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-aiohttp = "^3.8.5"
-rich = "^13.5.2"
-appdirs = "^1.4.4"
+[project.scripts]
+"cchdo.snapshotter" = "cchdo.snapshotter.__main__:main"
 
+[tool.uv]
+
+[tool.uv.build-backend]
+module-name = ["cchdo"]
+module-root = ""
+namespace = true
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.12.0,<0.13.0"]
+build-backend = "uv_build"
