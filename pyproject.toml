@@ -1,10 +1,10 @@
 [project]
 name = "cchdo.snapshotter"
-version = "0.1.0"
-description = ""
+dynamic = ["version"]
+license = {text = "BSD 3-clause"}
+readme = {file = "README.md", content-type = "text/markdown"}
 authors = [{ name = "Andrew Barna", email = "abarna@gmail.com" }]
 requires-python = ">=3.13,<4"
-readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.13",
@@ -20,13 +20,9 @@ dependencies = [
 [project.scripts]
 "cchdo.snapshotter" = "cchdo.snapshotter.__main__:main"
 
-[tool.uv]
-
-[tool.uv.build-backend]
-module-name = ["cchdo"]
-module-root = ""
-namespace = true
-
 [build-system]
-requires = ["uv_build>=0.12.0,<0.13.0"]
-build-backend = "uv_build"
+requires = ["setuptools>=68", "setuptools_scm>=7"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+fallback_version = "999"

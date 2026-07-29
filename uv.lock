@@ -130,7 +130,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/a1/a0/8866b4c6f894af0eb
 
 [[package]]
 name = "cchdo-snapshotter"
-version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
